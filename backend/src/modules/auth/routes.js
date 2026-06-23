@@ -59,6 +59,22 @@ async function routes(fastify) {
         path: '/api/auth/refresh',
       });
       const payload = {
+
+      // From fix/deferred-audit-log-486
+      req.auditOnResponse = {
+  userId: result.user.id,
+  action: 'LOGIN',
+  ipAddress: req.ip,
+  userAgent,
+};
+
+const payload = {
+  accessToken: result.accessToken,
+  user: result.user,
+};
+
+      // From master
+      const response = {
         accessToken: result.accessToken,
         user: result.user,
       };
@@ -72,12 +88,7 @@ async function routes(fastify) {
         },
         'login success'
       );
-<<<<<<< HEAD
-
-      createAuditLog({
-=======
       audit.createAuditLog({
->>>>>>> dabcd78 (fix: remove duplicate declarations and consolidate sanitize middleware)
         userId: result.user.id,
         action: 'LOGIN',
         ipAddress: req.ip,
@@ -135,8 +146,19 @@ async function routes(fastify) {
       );
 
       reply.clearCookie('refreshToken', { path: '/api/auth/refresh' });
+
+      // From fix/deferred-audit-log-486
+      req.auditOnResponse = {
+        userId: req.user.id,
+        action: 'LOGOUT',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      };
+
+      // From master
       reply.clearCookie('csrf-sid', { path: '/' });
       reply.clearCookie('csrf-token', { path: '/' });
+
       return { message: 'Logged out' };
     }
   );
