@@ -58,7 +58,26 @@ async function routes(fastify) {
         sameSite: 'strict',
         path: '/api/auth/refresh',
       });
-      reply.send({ accessToken: result.accessToken, user: result.user });
+
+      const { rotateAndSetCsrf } = require('../../middleware/csrf');
+      rotateAndSetCsrf(req, reply, result.user.id);
+
+      // From fix/deferred-audit-log-486
+      req.auditOnResponse = {
+        userId: result.user.id,
+        action: 'LOGIN',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      };
+
+      // From master
+      const response = {
+        accessToken: result.accessToken,
+        user: result.user,
+      };
+
+      reply.send(response);
+
       req.log.info(
         { action: 'LOGIN', userId: result.user.id, ip: req.ip, userAgent },
         'login success'
@@ -122,6 +141,15 @@ async function routes(fastify) {
       );
 
       reply.clearCookie('refreshToken', { path: '/api/auth/refresh' });
+
+      // From fix/deferred-audit-log-486
+      req.auditOnResponse = {
+        userId: req.user.id,
+        action: 'LOGOUT',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      };
+
       reply.clearCookie('csrf-sid', { path: '/' });
       reply.clearCookie('csrf-token', { path: '/' });
       return { message: 'Logged out' };

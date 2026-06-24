@@ -1,4 +1,4 @@
-﻿// Basic input sanitization for common injection patterns
+// Basic input sanitization for common injection patterns
 function sanitizeInput(obj, allowedFields = []) {
   if (typeof obj !== 'object' || obj === null) return;
 
