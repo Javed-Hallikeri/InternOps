@@ -48,12 +48,8 @@ jobs:
       - name: Install backend dependencies
         shell: bash
         run: |
-          if [ -f backend/package-lock.json ]; then
-            cd backend && npm ci
-          else
-            echo "backend/package-lock.json not found; falling back to npm install"
-            cd backend && npm install
-          fi
+          cd backend
+          npm install --no-audit --no-fund
 
       - name: Wait for PostgreSQL
         run: |
@@ -74,12 +70,8 @@ jobs:
       - name: Install frontend dependencies
         shell: bash
         run: |
-          if [ -f frontend/package-lock.json ]; then
-            cd frontend && npm ci
-          else
-            echo "frontend/package-lock.json not found; falling back to npm install"
-            cd frontend && npm install
-          fi
+          cd frontend
+          npm install --no-audit --no-fund
 
       - name: Build frontend
         run: cd frontend && npm run build
