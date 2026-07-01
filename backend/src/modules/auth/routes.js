@@ -1,3 +1,6 @@
+const {
+  sanitizationMiddleware: sanitize,
+} = require('../../middleware/sanitize');
 const service = require('./service');
 const { z } = require('zod');
 const rbac = require('../../middleware/rbac');
@@ -14,13 +17,14 @@ const repo = require('./repository');
 const { forgotPassword, resetPassword } = require('./resetService');
 const { toSchema } = require('../../utils/schemaHelper');
 const isProduction = process.env.NODE_ENV === 'production';
+const pLimit = require('p-limit');
 
 async function routes(fastify) {
   // Register
   fastify.post(
     '/register',
     {
-      preHandler: [auth, rbac('ADMIN')],
+      preHandler: [auth, rbac('ADMIN'), sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Register a new user (Admin only)',
@@ -56,11 +60,144 @@ async function routes(fastify) {
     }
   );
 
+  // Bulk Register
+  fastify.post(
+    '/register/bulk',
+    {
+      preHandler: [auth, rbac('ADMIN'), sanitize],
+      schema: {
+        tags: ['Authentication'],
+        description: 'Bulk register users (Admin only)',
+        body: {
+          type: 'object',
+          required: ['users'],
+          properties: {
+            users: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 100,
+              items: {
+                type: 'object',
+                required: ['email', 'password', 'role'],
+                properties: {
+                  fullName: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 8 },
+                  role: {
+                    type: 'string',
+                    enum: ['SENIOR_TL', 'TL', 'CAPTAIN', 'INTERN'],
+                  },
+                  managerId: { type: 'string', format: 'uuid' },
+                  departmentId: { type: 'string', format: 'uuid' },
+                },
+              },
+            },
+          },
+        },
+        response: {
+          207: {
+            type: 'object',
+            properties: {
+              success: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    email: { type: 'string' },
+                    id: { type: 'string' },
+                  },
+                },
+              },
+              failed: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    email: { type: 'string' },
+                    error: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const userSchema = z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+        role: z.enum(['SENIOR_TL', 'TL', 'CAPTAIN', 'INTERN']),
+        managerId: z.string().uuid().optional(),
+        departmentId: z.string().uuid().optional(),
+        fullName: z.string().optional(),
+      });
+      const schema = z.object({ users: z.array(userSchema).min(1).max(100) });
+      const { users } = schema.parse(req.body);
+
+      const ROLE_HIERARCHY = ['INTERN', 'CAPTAIN', 'TL', 'SENIOR_TL', 'ADMIN'];
+      const callerLevel = ROLE_HIERARCHY.indexOf(req.user.role);
+
+      const results = { success: [], failed: [] };
+      const limit = pLimit(5); // max 5 concurrent registrations
+
+      await Promise.allSettled(
+        users.map((userData) =>
+          limit(async () => {
+            const targetLevel = ROLE_HIERARCHY.indexOf(userData.role);
+
+            // Handle unknown roles
+            if (callerLevel === -1 || targetLevel === -1) {
+              results.failed.push({
+                email: userData.email,
+                error: 'Invalid role specified.',
+              });
+              return;
+            }
+
+            if (targetLevel >= callerLevel) {
+              results.failed.push({
+                email: userData.email,
+                error: 'Cannot assign a role equal to or higher than your own.',
+              });
+              return;
+            }
+
+            try {
+              const user = await service.register(userData, req.user);
+              results.success.push({ email: userData.email, id: user.id });
+            } catch (err) {
+              // Log without password
+              req.log.error(
+                { email: userData.email, code: err.code, message: err.message },
+                'Bulk register failed for user'
+              );
+
+              // Structured error classification
+              let safeMessage = 'Failed to create user.';
+              if (err.code === '23505') safeMessage = 'Email already exists.';
+              else if (err.code === '23503')
+                safeMessage = 'Invalid manager or department ID.';
+              else if (err.statusCode === 400) safeMessage = err.message;
+
+              results.failed.push({
+                email: userData.email,
+                error: safeMessage,
+              });
+            }
+          })
+        )
+      );
+
+      return reply.status(207).send(results);
+    }
+  );
+
   // Login
   fastify.post(
     '/login',
     {
-      preHandler: [bruteForceCheck],
+      preHandler: [bruteForceCheck, sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Login with email and password',
@@ -122,21 +259,28 @@ async function routes(fastify) {
   fastify.post(
     '/refresh',
     {
+      preHandler: [sanitize],
       schema: { tags: ['Authentication'], description: 'Refresh access token' },
     },
     async (req, reply) => {
       const token = req.cookies.refreshToken;
-      if (!token)
+
+      if (!token) {
         return reply.status(400).send({ error: 'Refresh token required' });
+      }
+
       const tokens = await service.refreshTokens(token, req.ip);
+
       reply.setCookie('refreshToken', tokens.refreshToken, {
         httpOnly: true,
         secure: isProduction,
         sameSite: 'strict',
         path: '/api/auth/refresh',
       });
+
       return {
         accessToken: tokens.accessToken,
+        user: tokens.user,
       };
     }
   );
@@ -145,7 +289,7 @@ async function routes(fastify) {
   fastify.post(
     '/logout',
     {
-      preHandler: [auth],
+      preHandler: [auth, sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Logout and revoke refresh token',
@@ -167,6 +311,8 @@ async function routes(fastify) {
       await service.logout(
         token,
         req.user.id,
+        req.user.jti,
+        req.user.exp,
         req.ip,
         req.headers['user-agent']
       );
@@ -206,6 +352,7 @@ async function routes(fastify) {
   fastify.post(
     '/verify-email',
     {
+      preHandler: [sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Verify email with token',
@@ -227,7 +374,7 @@ async function routes(fastify) {
   fastify.post(
     '/resend-verification',
     {
-      preHandler: [auth],
+      preHandler: [auth, sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Resend verification email',
@@ -245,6 +392,7 @@ async function routes(fastify) {
   fastify.post(
     '/forgot-password',
     {
+      preHandler: [sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Send password reset email',
@@ -266,6 +414,7 @@ async function routes(fastify) {
   fastify.post(
     '/reset-password',
     {
+      preHandler: [sanitize],
       schema: {
         tags: ['Authentication'],
         description: 'Reset password with token',
