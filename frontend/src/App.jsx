@@ -28,8 +28,16 @@ import RoleGuard from './components/RoleGuard';
 function Private({ children }) {
   const token = useAuthStore((s) => s.accessToken);
   const hydrated = useAuthStore((s) => s.hydrated);
+  const systemError = useAuthStore((s) => s.systemError);
 
   if (!hydrated) return null;
+  if (systemError) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '8px' }}>
+      <p style={{ fontWeight: 600 }}>System Unavailable</p>
+      <p style={{ color: '#6b7280' }}>{systemError}</p>
+      <button onClick={() => { useAuthStore.getState().clearSystemError(); window.location.reload(); }}>Retry</button>
+    </div>
+  );
   if (!token) return <Navigate to="/login" replace />;
   return children;
 }
@@ -38,6 +46,7 @@ export default function App() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const setHydrated = useAuthStore((s) => s.setHydrated);
   const logout = useAuthStore((s) => s.logout);
+  const setSystemError = useAuthStore((s) => s.setSystemError);
 
   useEffect(() => {
     api
@@ -45,14 +54,13 @@ export default function App() {
       .then((res) =>
         setAuth({ accessToken: res.data.accessToken, user: res.data.user })
       )
-      .catch(() => {
-        // Server could not verify the session (no valid refresh cookie, or the
-        // token was manipulated client-side). Clear ANY token that was read
-        // from localStorage so it is never surfaced in a protected route once
-        // hydrated becomes true. Without this, an attacker who sets a fake
-        // token via the browser console would see protected UI for as long as
-        // the refresh request is in-flight.
-        logout();
+      .catch((err) => {
+        const status = err.response?.status;
+        if (status === 401 || status === 403) {
+          logout();
+        } else {
+          setSystemError('Service temporarily unavailable. Please try again later.');
+        }
       })
       .finally(() => setHydrated());
   }, []);

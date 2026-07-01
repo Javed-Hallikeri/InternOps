@@ -48,6 +48,7 @@ const useAuthStore = create((set) => ({
   // hydrated is false, so manipulated localStorage data can NEVER be shown in
   // a protected route — the bootstrapping gap is fully closed.
   hydrated: false,
+  systemError: null,
 
   // setAuth uses a functional updater so the new state is always computed
   // from the latest Zustand snapshot at dispatch time. Two concurrent callers
@@ -69,6 +70,9 @@ const useAuthStore = create((set) => ({
     }),
 
   setHydrated: () => set({ hydrated: true }),
+
+  setSystemError: (message) => set({ systemError: message }),
+  clearSystemError: () => set({ systemError: null }),
 
   logout: () => {
     safeSet('accessToken', null);
