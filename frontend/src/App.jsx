@@ -57,7 +57,7 @@ export default function App() {
       })
       .catch((err) => {
         const status = err.response?.status;
-        if (status === 401 || status === 403) {
+        if (status === 400 || status === 401 || status === 403) {
           const currentToken = useAuthStore.getState().accessToken;
           if (!currentToken) logout();
         } else {
