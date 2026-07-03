@@ -61,7 +61,9 @@ export default function App() {
           const currentToken = useAuthStore.getState().accessToken;
           if (!currentToken) logout();
         } else {
-          setSystemError('Service temporarily unavailable. Please try again later.');
+          setSystemError(
+            'Service temporarily unavailable. Please try again later.'
+          );
         }
       })
       .finally(() => {
@@ -71,9 +73,29 @@ export default function App() {
 
   if (systemError) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '12px' }}>
-        <p style={{ fontSize: '1.1rem', color: '#b91c1c', fontWeight: 600 }}>{systemError}</p>
-        <button onClick={() => { useAuthStore.getState().setSystemError(null); bootRefreshPromise = null; window.location.reload(); }} style={{ padding: '8px 20px', cursor: 'pointer' }}>Retry</button>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          gap: '12px',
+        }}
+      >
+        <p style={{ fontSize: '1.1rem', color: '#b91c1c', fontWeight: 600 }}>
+          {systemError}
+        </p>
+        <button
+          onClick={() => {
+            useAuthStore.getState().setSystemError(null);
+            bootRefreshPromise = null;
+            window.location.reload();
+          }}
+          style={{ padding: '8px 20px', cursor: 'pointer' }}
+        >
+          Retry
+        </button>
       </div>
     );
   }
