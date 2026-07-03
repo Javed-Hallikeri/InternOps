@@ -138,7 +138,6 @@ const useAuthStore = create((set) => ({
 
   setSystemError: (message) => set({ systemError: message }),
 
-
   logout: () => {
     // Thoroughly clear any legacy persisted token and cached user data.
     safeRemove('accessToken');
