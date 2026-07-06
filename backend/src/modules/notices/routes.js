@@ -68,7 +68,9 @@ async function noticesRoutes(fastify) {
           z.object({
             title: z.string().trim().min(1, 'Title is required'),
             content: z.string().trim().min(1, 'Content is required'),
-            category: z.enum(['GENERAL', 'REMINDER', 'ALERT', 'NEWS']).optional(),
+            category: z
+              .enum(['GENERAL', 'REMINDER', 'ALERT', 'NEWS'])
+              .optional(),
           })
         ),
       },
@@ -110,8 +112,14 @@ async function noticesRoutes(fastify) {
         body: toSchema(
           z.object({
             title: z.string().trim().min(1, 'Title cannot be empty').optional(),
-            content: z.string().trim().min(1, 'Content cannot be empty').optional(),
-            category: z.enum(['GENERAL', 'REMINDER', 'ALERT', 'NEWS']).optional(),
+            content: z
+              .string()
+              .trim()
+              .min(1, 'Content cannot be empty')
+              .optional(),
+            category: z
+              .enum(['GENERAL', 'REMINDER', 'ALERT', 'NEWS'])
+              .optional(),
             is_active: z.boolean().optional(),
           })
         ),
