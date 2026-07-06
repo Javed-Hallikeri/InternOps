@@ -120,7 +120,9 @@ export default function RatingForm() {
             </span>
           </div>
 
-          <div className={`rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 p-3 ${rateMutation.isPending ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div
+            className={`rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 p-3 ${rateMutation.isPending ? 'opacity-60 pointer-events-none' : ''}`}
+          >
             <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                 <button

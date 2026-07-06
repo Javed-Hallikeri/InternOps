@@ -129,7 +129,9 @@ module.exports = async function socialTasksRoutes(fastify) {
     async (req, reply) => {
       const parsed = updateTaskSchema.safeParse(req.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Validation failed', details: parsed.error.issues });
+        return reply
+          .status(400)
+          .send({ error: 'Validation failed', details: parsed.error.issues });
       }
       const task = await repo.updateTask(req.params.id, parsed.data);
       if (!task) return reply.status(404).send({ error: 'Task not found' });
