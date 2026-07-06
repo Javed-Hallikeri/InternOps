@@ -183,7 +183,10 @@ async function getProof(proofId) {
   return res.rows[0] || null;
 }
 
-async function updateTask(taskId, { title, description, targetPlatform, taskLink, deadline }) {
+async function updateTask(
+  taskId,
+  { title, description, targetPlatform, taskLink, deadline }
+) {
   const res = await pool.query(
     `UPDATE social_tasks
      SET title = COALESCE($1, title),
@@ -199,10 +202,9 @@ async function updateTask(taskId, { title, description, targetPlatform, taskLink
 }
 
 async function deleteTask(taskId) {
-  await pool.query(
-    'UPDATE social_tasks SET deleted_at = NOW() WHERE id = $1',
-    [taskId]
-  );
+  await pool.query('UPDATE social_tasks SET deleted_at = NOW() WHERE id = $1', [
+    taskId,
+  ]);
 }
 
 async function deleteProof(proofId) {

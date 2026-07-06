@@ -118,7 +118,8 @@ export default function Tasks() {
       setEditingTask(null);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
-    onError: (err) => showNotification(err.response?.data?.error || 'Update failed'),
+    onError: (err) =>
+      showNotification(err.response?.data?.error || 'Update failed'),
   });
 
   const deleteTaskMutation = useMutation({
@@ -127,7 +128,8 @@ export default function Tasks() {
       setDeletingTaskId(null);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
-    onError: (err) => showNotification(err.response?.data?.error || 'Delete failed'),
+    onError: (err) =>
+      showNotification(err.response?.data?.error || 'Delete failed'),
   });
 
   const deleteImageMutation = useMutation({
@@ -291,7 +293,9 @@ export default function Tasks() {
                                 targetPlatform: t.target_platform || '',
                                 taskLink: t.task_link || '',
                                 deadline: t.deadline
-                                  ? new Date(t.deadline).toISOString().slice(0, 16)
+                                  ? new Date(t.deadline)
+                                      .toISOString()
+                                      .slice(0, 16)
                                   : '',
                               });
                             }}
@@ -313,7 +317,9 @@ export default function Tasks() {
                                 disabled={deleteTaskMutation.isPending}
                                 onClick={() => deleteTaskMutation.mutate(t.id)}
                               >
-                                {deleteTaskMutation.isPending ? 'Deleting…' : 'Confirm'}
+                                {deleteTaskMutation.isPending
+                                  ? 'Deleting…'
+                                  : 'Confirm'}
                               </button>
                             </div>
                           ) : (
@@ -365,32 +371,48 @@ export default function Tasks() {
 
                 {editingTask === t.id && (
                   <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3 animate-fade-in">
-                    <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Edit Task</p>
+                    <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Edit Task
+                    </p>
                     <input
                       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 w-full text-sm focus:ring-2 focus:ring-indigo-400/50 outline-none"
                       placeholder="Title"
                       value={editForm.title}
-                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, title: e.target.value })
+                      }
                     />
                     <textarea
                       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 w-full text-sm focus:ring-2 focus:ring-indigo-400/50 outline-none resize-none"
                       placeholder="Description"
                       rows={2}
                       value={editForm.description}
-                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          description: e.target.value,
+                        })
+                      }
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input
                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-400/50 outline-none"
                         placeholder="Platform"
                         value={editForm.targetPlatform}
-                        onChange={(e) => setEditForm({ ...editForm, targetPlatform: e.target.value })}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            targetPlatform: e.target.value,
+                          })
+                        }
                       />
                       <input
                         type="datetime-local"
                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-400/50 outline-none"
                         value={editForm.deadline}
-                        onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, deadline: e.target.value })
+                        }
                       />
                     </div>
                     <input
@@ -398,7 +420,9 @@ export default function Tasks() {
                       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 w-full text-sm focus:ring-2 focus:ring-indigo-400/50 outline-none"
                       placeholder="Task link (https://…)"
                       value={editForm.taskLink}
-                      onChange={(e) => setEditForm({ ...editForm, taskLink: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, taskLink: e.target.value })
+                      }
                     />
                     <div className="flex items-center gap-2">
                       <Btn
@@ -413,10 +437,15 @@ export default function Tasks() {
                         className="rounded-2xl py-1.5 text-sm"
                         disabled={updateTaskMutation.isPending}
                         onClick={() =>
-                          updateTaskMutation.mutate({ id: t.id, data: editForm })
+                          updateTaskMutation.mutate({
+                            id: t.id,
+                            data: editForm,
+                          })
                         }
                       >
-                        {updateTaskMutation.isPending ? 'Saving…' : 'Save changes'}
+                        {updateTaskMutation.isPending
+                          ? 'Saving…'
+                          : 'Save changes'}
                       </Btn>
                     </div>
                   </div>
