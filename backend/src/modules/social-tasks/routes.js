@@ -184,34 +184,6 @@ module.exports = async function socialTasksRoutes(fastify) {
     }
   );
 
-  // Update a social task (Admin / Senior TL).
-  fastify.patch(
-    '/:id',
-    {
-      schema: { tags: ['Tasks'], description: 'Update a social task' },
-      preHandler: [auth, rbac('ADMIN', 'SENIOR_TL'), sanitize],
-    },
-    async (req, reply) => {
-      const parsed = updateTaskSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return reply
-          .status(400)
-          .send({ error: 'Validation failed', details: parsed.error.issues });
-      }
-      const task = await repo.updateTask(req.params.id, parsed.data);
-      if (!task) return reply.status(404).send({ error: 'Task not found' });
-      req.auditOnResponse = {
-        userId: req.user.id,
-        ...extractRequestInfo(req),
-        action: 'TASK_UPDATED',
-        resourceType: 'social_task',
-        resourceId: task.id,
-        details: parsed.data,
-      };
-      return task;
-    }
-  );
-
   // Delete a social task (Admin / Senior TL).
   fastify.delete(
     '/:id',
