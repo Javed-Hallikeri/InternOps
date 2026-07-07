@@ -375,7 +375,14 @@ export default function Tasks() {
     },
 
     onSuccess: (_, variables) => {
-      setDraftFiles({ taskId: null, files: [], previews: [], didComment: false, didRepost: false, didShare: false });
+      setDraftFiles({
+        taskId: null,
+        files: [],
+        previews: [],
+        didComment: false,
+        didRepost: false,
+        didShare: false,
+      });
       refetchProofs();
 
       queryClient.invalidateQueries({ queryKey: ['proofs', variables.taskId] });
@@ -765,7 +772,12 @@ export default function Tasks() {
                             <input
                               type="checkbox"
                               checked={draftFiles.didComment}
-                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didComment: e.target.checked }))}
+                              onChange={(e) =>
+                                setDraftFiles((prev) => ({
+                                  ...prev,
+                                  didComment: e.target.checked,
+                                }))
+                              }
                             />
                             Comment
                           </label>
@@ -773,7 +785,12 @@ export default function Tasks() {
                             <input
                               type="checkbox"
                               checked={draftFiles.didRepost}
-                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didRepost: e.target.checked }))}
+                              onChange={(e) =>
+                                setDraftFiles((prev) => ({
+                                  ...prev,
+                                  didRepost: e.target.checked,
+                                }))
+                              }
                             />
                             Repost
                           </label>
@@ -781,7 +798,12 @@ export default function Tasks() {
                             <input
                               type="checkbox"
                               checked={draftFiles.didShare}
-                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didShare: e.target.checked }))}
+                              onChange={(e) =>
+                                setDraftFiles((prev) => ({
+                                  ...prev,
+                                  didShare: e.target.checked,
+                                }))
+                              }
                             />
                             Share
                           </label>
@@ -807,8 +829,14 @@ export default function Tasks() {
                             variant="success"
                             className="text-sm rounded-2xl py-1.5 flex items-center gap-2"
                             onClick={() => {
-                              if (!draftFiles.didComment && !draftFiles.didRepost && !draftFiles.didShare) {
-                                showNotification('Please select at least one engagement action.');
+                              if (
+                                !draftFiles.didComment &&
+                                !draftFiles.didRepost &&
+                                !draftFiles.didShare
+                              ) {
+                                showNotification(
+                                  'Please select at least one engagement action.'
+                                );
                                 return;
                               }
                               submitMutation.mutate({
@@ -939,9 +967,15 @@ export default function Tasks() {
                               {p.status}
                             </Badge>
                             <div className="flex gap-1 mt-1 flex-wrap">
-                              {p.did_comment && <Badge color="blue">Comment</Badge>}
-                              {p.did_repost && <Badge color="purple">Repost</Badge>}
-                              {p.did_share && <Badge color="green">Share</Badge>}
+                              {p.did_comment && (
+                                <Badge color="blue">Comment</Badge>
+                              )}
+                              {p.did_repost && (
+                                <Badge color="purple">Repost</Badge>
+                              )}
+                              {p.did_share && (
+                                <Badge color="green">Share</Badge>
+                              )}
                             </div>
                             <p className="text-slate-500 dark:text-slate-400 mt-2 truncate w-full">
                               Intern:{' '}
