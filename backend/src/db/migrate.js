@@ -83,64 +83,67 @@ async function loadMigrations(dir) {
   return migrations;
 }
 
+async function ensureMetaTables(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      name VARCHAR(255) PRIMARY KEY,
+      applied_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS _migration_checksums (
+      name VARCHAR(255) PRIMARY KEY,
+      sha256 VARCHAR(64) NOT NULL
+    )
+  `);
+}
+
+async function backfillRenames(client) {
+  const { rows: appliedRows } = await client.query(
+    'SELECT name FROM _migrations'
+  );
+  const appliedNames = new Set(appliedRows.map((r) => r.name));
+
+  for (const [oldName, newName] of Object.entries(MIGRATION_RENAMES)) {
+    if (!appliedNames.has(oldName)) continue;
+    if (!appliedNames.has(newName)) {
+      console.log(
+        `Renaming applied migration record in DB: ${oldName} -> ${newName}`
+      );
+      await client.query('UPDATE _migrations SET name = $1 WHERE name = $2', [
+        newName,
+        oldName,
+      ]);
+      await client.query(
+        'UPDATE _migration_checksums SET name = $1 WHERE name = $2',
+        [newName, oldName]
+      );
+    } else {
+      await client.query('DELETE FROM _migrations WHERE name = $1', [oldName]);
+      await client.query('DELETE FROM _migration_checksums WHERE name = $1', [
+        oldName,
+      ]);
+    }
+  }
+}
+
 async function migrate(migrationsDir) {
   const dir = migrationsDir || path.resolve(__dirname, '../../migrations');
   const migrations = await loadMigrations(dir);
 
-  const client = await pool.connect();
+  // Setup and rename backfill run outside per-migration transactions
+  const setupClient = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await ensureMetaTables(setupClient);
+    await backfillRenames(setupClient);
+  } finally {
+    setupClient.release();
+  }
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        name VARCHAR(255) PRIMARY KEY,
-        applied_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS _migration_checksums (
-        name VARCHAR(255) PRIMARY KEY,
-        sha256 VARCHAR(64) NOT NULL
-      )
-    `);
-
-    // Handle historical renames automatically so they do not run again
-    const { rows: appliedRows } = await client.query(
-      'SELECT name FROM _migrations'
-    );
-    const appliedNames = new Set(appliedRows.map((r) => r.name));
-
-    for (const [oldName, newName] of Object.entries(MIGRATION_RENAMES)) {
-      if (appliedNames.has(oldName)) {
-        if (!appliedNames.has(newName)) {
-          console.log(
-            `Renaming applied migration record in DB: ${oldName} -> ${newName}`
-          );
-          await client.query(
-            'UPDATE _migrations SET name = $1 WHERE name = $2',
-            [newName, oldName]
-          );
-          await client.query(
-            'UPDATE _migration_checksums SET name = $1 WHERE name = $2',
-            [newName, oldName]
-          );
-        } else {
-          // If both exist (cleanup edge case), delete the redundant old record
-          await client.query('DELETE FROM _migrations WHERE name = $1', [
-            oldName,
-          ]);
-          await client.query(
-            'DELETE FROM _migration_checksums WHERE name = $1',
-            [oldName]
-          );
-        }
-      }
-    }
-
-    for (const migration of migrations) {
-      const { name, sql, checksum } = migration;
-
+  for (const migration of migrations) {
+    const { name, sql, checksum } = migration;
+    const client = await pool.connect();
+    try {
       const alreadyApplied = await client.query(
         'SELECT 1 FROM _migrations WHERE name = $1',
         [name]
@@ -160,33 +163,26 @@ async function migrate(migrationsDir) {
         continue;
       }
 
-      try {
-        await client.query(sql);
-        console.log(`Migration applied: ${name}`);
-        await client.query('INSERT INTO _migrations (name) VALUES ($1)', [
-          name,
-        ]);
-        await client.query(
-          'INSERT INTO _migration_checksums (name, sha256) VALUES ($1, $2)',
-          [name, checksum]
-        );
-      } catch (execErr) {
-        throw new Error(
-          `Migration failed in file "${name}": ${execErr.message}\nSQL:\n${sql.substring(0, 500)}...`
-        );
-      }
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('INSERT INTO _migrations (name) VALUES ($1)', [name]);
+      await client.query(
+        'INSERT INTO _migration_checksums (name, sha256) VALUES ($1, $2)',
+        [name, checksum]
+      );
+      await client.query('COMMIT');
+      console.log(`Migration applied: ${name}`);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      const message = `Migration failed at "${name}": ${err.message}`;
+      console.error(message);
+      throw new Error(message);
+    } finally {
+      client.release();
     }
-
-    await client.query('COMMIT');
-    console.log('All pending migrations applied successfully.');
-  } catch (e) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error('Migration error:', e.message);
-    console.error(e.stack);
-    throw e;
-  } finally {
-    client.release();
   }
+
+  console.log('All pending migrations applied successfully.');
 }
 
 module.exports = { migrate };
