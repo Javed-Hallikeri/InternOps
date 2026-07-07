@@ -39,7 +39,7 @@ module.exports = {
     // production so local/CI keep working; production must set JWT_REFRESH_SECRET
     // (enforced by validateEnv).
     refreshSecret: resolveRefreshSecret(),
-    accessExpiry: '15m',
+    accessExpiry: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiry: process.env.JWT_EXPIRES_IN || '7d',
   },
   apiKey: process.env.API_KEY,
@@ -70,9 +70,13 @@ module.exports = {
     apiKey: process.env.UPTOSKILLS_API_KEY || '',
   },
   rateLimit: {
-    globalMax: process.env.NODE_ENV === 'test' ? 10000 : 100,
-    authMax: process.env.NODE_ENV === 'test' ? 10000 : 50,
-    timeWindow: '1 minute',
+    globalMax:
+      parseInt(process.env.RATE_LIMIT_GLOBAL_MAX, 10) ||
+      (process.env.NODE_ENV === 'test' ? 10000 : 100),
+    authMax:
+      parseInt(process.env.RATE_LIMIT_AUTH_MAX, 10) ||
+      (process.env.NODE_ENV === 'test' ? 10000 : 50),
+    timeWindow: process.env.RATE_LIMIT_TIME_WINDOW || '1 minute',
   },
   email: {
     host: process.env.SMTP_HOST,
