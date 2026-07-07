@@ -321,8 +321,12 @@ export default function Tasks() {
     taskId: null,
     files: [],
     previews: [],
+    didComment: false,
+    didRepost: false,
+    didShare: false,
   });
   const [deletingProofId, setDeletingProofId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -361,22 +365,17 @@ export default function Tasks() {
     mutationFn: async ({ taskId, files, didComment, didRepost, didShare }) => {
       const form = new FormData();
       form.append('task_id', taskId);
-
-      files.forEach((file) => {
-        form.append('image', file);
-      });
-
-      form.append('didComment', didComment);
-      form.append('didRepost', didRepost);
-      form.append('didShare', didShare);
-
+      files.forEach((file) => form.append('image', file));
+      form.append('didComment', String(!!didComment));
+      form.append('didRepost', String(!!didRepost));
+      form.append('didShare', String(!!didShare));
       return api.post('/proofs/submit', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
     },
 
     onSuccess: (_, variables) => {
-      setDraftFiles({ taskId: null, files: [], previews: [] });
+      setDraftFiles({ taskId: null, files: [], previews: [], didComment: false, didRepost: false, didShare: false });
       refetchProofs();
 
       queryClient.invalidateQueries({ queryKey: ['proofs', variables.taskId] });
@@ -456,7 +455,7 @@ export default function Tasks() {
     }
 
     const previews = files.map((f) => URL.createObjectURL(f));
-    setDraftFiles({ taskId, files, previews });
+    setDraftFiles((prev) => ({ ...prev, taskId, files, previews }));
   };
 
   const overdue = (d) => new Date(d) < new Date();
@@ -761,6 +760,32 @@ export default function Tasks() {
                             />
                           ))}
                         </div>
+                        <div className="flex gap-4 text-sm">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={draftFiles.didComment}
+                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didComment: e.target.checked }))}
+                            />
+                            Comment
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={draftFiles.didRepost}
+                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didRepost: e.target.checked }))}
+                            />
+                            Repost
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={draftFiles.didShare}
+                              onChange={(e) => setDraftFiles((prev) => ({ ...prev, didShare: e.target.checked }))}
+                            />
+                            Share
+                          </label>
+                        </div>
                         <div className="flex items-center gap-2">
                           <Btn
                             variant="outline"
@@ -770,6 +795,9 @@ export default function Tasks() {
                                 taskId: null,
                                 files: [],
                                 previews: [],
+                                didComment: false,
+                                didRepost: false,
+                                didShare: false,
                               })
                             }
                           >
@@ -778,12 +806,19 @@ export default function Tasks() {
                           <Btn
                             variant="success"
                             className="text-sm rounded-2xl py-1.5 flex items-center gap-2"
-                            onClick={() =>
+                            onClick={() => {
+                              if (!draftFiles.didComment && !draftFiles.didRepost && !draftFiles.didShare) {
+                                showNotification('Please select at least one engagement action.');
+                                return;
+                              }
                               submitMutation.mutate({
                                 taskId: t.id,
                                 files: draftFiles.files,
-                              })
-                            }
+                                didComment: draftFiles.didComment,
+                                didRepost: draftFiles.didRepost,
+                                didShare: draftFiles.didShare,
+                              });
+                            }}
                             disabled={submitMutation.isPending}
                           >
                             {submitMutation.isPending && (
@@ -903,7 +938,11 @@ export default function Tasks() {
                             >
                               {p.status}
                             </Badge>
-
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {p.did_comment && <Badge color="blue">Comment</Badge>}
+                              {p.did_repost && <Badge color="purple">Repost</Badge>}
+                              {p.did_share && <Badge color="green">Share</Badge>}
+                            </div>
                             <p className="text-slate-500 dark:text-slate-400 mt-2 truncate w-full">
                               Intern:{' '}
                               {p.intern_name ||
