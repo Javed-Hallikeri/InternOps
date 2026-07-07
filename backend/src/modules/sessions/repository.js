@@ -162,7 +162,6 @@ async function revokeAllUserSessions(userId) {
   }
 }
 
-
 module.exports = {
   getUserSessions,
   revokeSession,
