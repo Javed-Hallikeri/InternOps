@@ -11,11 +11,13 @@ Native browser `alert()` dialogs are used for error feedback in `Exports.jsx` at
 ## Affected Code
 
 **Line 55 — validation error:**
+
 ```jsx
 alert('Please select both a From and To date before downloading.');
 ```
 
 **Line 79 — download error:**
+
 ```jsx
 alert(err.response?.data?.error || 'Download failed');
 ```
@@ -30,11 +32,11 @@ alert(err.response?.data?.error || 'Download failed');
 
 ## Severity
 
-| Field | Detail |
-|---|---|
-| Severity | Medium |
-| Type | Best Practice |
-| Rule | `javascript/alert-box` |
+| Field     | Detail                                 |
+| --------- | -------------------------------------- |
+| Severity  | Medium                                 |
+| Type      | Best Practice                          |
+| Rule      | `javascript/alert-box`                 |
 | Component | `frontend/src/pages/admin/Exports.jsx` |
 
 ## Recommended Fix
@@ -62,11 +64,13 @@ const download = async (endpoint, requiresDates) => {
 Render the error in JSX:
 
 ```jsx
-{error && (
-  <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl px-4 py-3">
-    {error}
-  </div>
-)}
+{
+  error && (
+    <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl px-4 py-3">
+      {error}
+    </div>
+  );
+}
 ```
 
 This removes `alert()` and gives users a styled, non-blocking error message consistent with the rest of the app.
