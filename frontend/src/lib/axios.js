@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 function getBaseUrl() {
   const raw = import.meta.env.VITE_API_URL;
@@ -165,12 +166,6 @@ api.interceptors.response.use(
     return res;
   },
   async (err) => {
-    console.error(
-      '[Global API Error]',
-      err.response?.data || err.message,
-      err.config?.url
-    );
-
     const original = err.config || {};
     const status = err.response?.status;
 
@@ -249,6 +244,26 @@ api.interceptors.response.use(
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // Surface errors to the user — skip the silent 401→refresh flow and
+    // auth routes that handle their own error display.
+    const suppress =
+      isAuthRoute ||
+      (status === 401 && !original._retry);
+
+    if (!suppress) {
+      if (!status) {
+        toast.error('Network error — check your connection.');
+      } else if (status >= 500) {
+        toast.error('Something went wrong. Please try again later.');
+      } else if (status >= 400) {
+        const msg =
+          err.response?.data?.message ||
+          err.response?.data?.error ||
+          'An error occurred.';
+        toast.error(msg);
       }
     }
 
