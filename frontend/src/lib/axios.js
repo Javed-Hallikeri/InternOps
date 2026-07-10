@@ -249,9 +249,7 @@ api.interceptors.response.use(
 
     // Surface errors to the user — skip the silent 401→refresh flow and
     // auth routes that handle their own error display.
-    const suppress =
-      isAuthRoute ||
-      (status === 401 && !original._retry);
+    const suppress = isAuthRoute || (status === 401 && !original._retry);
 
     if (!suppress) {
       if (!status) {
