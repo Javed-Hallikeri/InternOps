@@ -144,8 +144,8 @@ describe('Security Error Logging (#1012)', () => {
     expect(engineOn).toHaveBeenCalledWith('connection', expect.any(Function));
     const engineConnectionHandler = engineOn.mock.calls[0][1];
 
-    const maxConnections = require('../../src/config').websocket
-      .maxUnauthenticatedConnections;
+    const maxConnections =
+      require('../../src/config').websocket.maxUnauthenticatedConnections;
 
     const sockets = Array.from({ length: maxConnections }, (_, index) => ({
       id: `engine-socket-${index}`,
