@@ -24,15 +24,18 @@ import {
   Palette,
   Sparkles,
   Zap,
+  ToggleRight,
 } from 'lucide-react';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+const Ratings = lazy(() => import('../pages/Ratings'));
 import api from '../lib/axios';
 import { connectSocket, disconnectSocket } from '../lib/socket';
 import { UserAvatar, ConfirmationModal } from '../components/ui';
 import useAuthStore from '../store/auth';
+import useFeatureFlagsStore from '../store/featureFlags';
 import { QUERY_KEYS } from '../constants/queryKeys';
 import { ROLE_LABEL } from '../constants/roles';
 
@@ -66,6 +69,7 @@ const nav = [
     label: 'Analytics',
     icon: BarChart2,
     allowedRoles: ADMIN_AND_SENIOR_TL_ROLES,
+    featureFlag: 'ADVANCED_ANALYTICS',
   },
   {
     path: '/exports',
@@ -129,11 +133,19 @@ const adminNav = [
     label: 'Templates & Canva',
     icon: Palette,
     allowedRoles: ADMIN_ONLY_ROLES,
+    featureFlag: 'CANVA_INTEGRATION',
   },
   {
     path: '/ai-certificates',
     label: 'AI Certificates',
     icon: Sparkles,
+    allowedRoles: ADMIN_ONLY_ROLES,
+    featureFlag: 'AI_CERT_GENERATOR',
+  },
+  {
+    path: '/feature-flags',
+    label: 'Feature Flags',
+    icon: ToggleRight,
     allowedRoles: ADMIN_ONLY_ROLES,
   },
 ];
@@ -141,9 +153,14 @@ const adminNav = [
 const FULL_LOGO_SRC = '/UptoSkills.webp';
 const MINI_LOGO_SRC = '/Uptoskills_log_fevicon.png';
 
-function canShowNavItem(item, role) {
-  if (!item.allowedRoles) return true;
-  return item.allowedRoles.includes(role);
+function canShowNavItem(item, role, flags) {
+  if (!item.allowedRoles) {
+    if (item.featureFlag) return flags[item.featureFlag] === true;
+    return true;
+  }
+  if (!item.allowedRoles.includes(role)) return false;
+  if (item.featureFlag) return flags[item.featureFlag] === true;
+  return true;
 }
 
 export default function DashboardLayout() {
@@ -159,7 +176,8 @@ export default function DashboardLayout() {
   }, [accessToken]);
 
   const role = user?.role;
-  const SIDEBAR_KEY = `sidebar_scroll_${window.location.pathname}`;
+  const flags = useFeatureFlagsStore((s) => s.flags);
+  const SIDEBAR_KEY = 'sidebar_scroll';
   const sidebarNavRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(
@@ -169,13 +187,25 @@ export default function DashboardLayout() {
     () => localStorage.getItem('theme') === 'dark'
   );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showRatingsModal, setShowRatingsModal] = useState(false);
+
+  useEffect(() => {
+    if (showRatingsModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showRatingsModal]);
 
   const { data: me } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE,
     queryFn: () => api.get('/users/me').then((r) => r.data),
   });
 
-  const displayName = me?.full_name || user?.fullName || user?.email;
+  const displayName = me?.full_name || user?.full_name || user?.email;
   const avatarUrl = me?.avatar_url || null;
 
   useEffect(() => {
@@ -187,8 +217,10 @@ export default function DashboardLayout() {
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  const visibleNav = nav.filter((item) => canShowNavItem(item, role));
-  const visibleAdminNav = adminNav.filter((item) => canShowNavItem(item, role));
+  const visibleNav = nav.filter((item) => canShowNavItem(item, role, flags));
+  const visibleAdminNav = adminNav.filter((item) =>
+    canShowNavItem(item, role, flags)
+  );
 
   const allItems = [...visibleNav, ...visibleAdminNav];
 
@@ -221,14 +253,23 @@ export default function DashboardLayout() {
   };
 
   const NavLink = ({ n }) => {
-    const active = loc.pathname === n.path;
+    const active =
+      loc.pathname === n.path || (n.path === '/ratings' && showRatingsModal);
     const Icon = n.icon;
 
     return (
       <Link
         to={n.path}
         title={collapsed ? n.label : undefined}
-        onClick={saveSidebarScroll}
+        aria-label={n.label}
+        onClick={(e) => {
+          if (n.path === '/ratings') {
+            e.preventDefault();
+            setShowRatingsModal(true);
+          } else {
+            saveSidebarScroll();
+          }
+        }}
         className={`group relative flex items-center gap-3 rounded-2xl text-sm font-bold transition-all duration-200
           ${collapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'}
           ${
@@ -386,7 +427,18 @@ export default function DashboardLayout() {
           </div>
         </header>
         <main className="flex-1 overflow-auto p-5 sm:p-6">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-[50vh] w-full">
+                <div className="relative w-12 h-12 animate-fade-in">
+                  <div className="absolute inset-0 rounded-full border-4 border-slate-200 dark:border-white/5"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-t-transparent border-r-transparent border-indigo-600 dark:border-indigo-400 animate-spin"></div>
+                </div>
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
@@ -399,6 +451,48 @@ export default function DashboardLayout() {
         onCancel={() => setShowLogoutConfirm(false)}
         danger={true}
       />
+
+      {showRatingsModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all duration-200"
+          onClick={() => setShowRatingsModal(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Performance Ratings
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowRatingsModal(false)}
+                className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center transition font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <Suspense
+                fallback={
+                  <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <div className="relative w-12 h-12">
+                      <div className="absolute inset-0 rounded-full border-4 border-slate-200 dark:border-white/5"></div>
+                      <div className="absolute inset-0 rounded-full border-4 border-t-transparent border-r-transparent border-indigo-600 dark:border-indigo-400 animate-spin"></div>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                      Loading ratings panel...
+                    </p>
+                  </div>
+                }
+              >
+                <Ratings />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
