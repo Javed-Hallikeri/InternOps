@@ -48,6 +48,48 @@ function logCsrfWarn(request, details, message) {
   request.log?.warn(details, message);
 }
 
+function normalizeOrigin(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
+
+function getTrustedOrigins() {
+  return [config.corsOrigin, config.appUrl]
+    .filter(Boolean)
+    .map(normalizeOrigin)
+    .filter(Boolean);
+}
+
+function isTrustedRequestOrigin(request) {
+  const originHeader = request.headers?.origin;
+  const refererHeader = request.headers?.referer;
+  const candidates = [originHeader, refererHeader].filter(Boolean);
+
+  if (!candidates.length) {
+    return true;
+  }
+
+  const trustedOrigins = new Set(getTrustedOrigins());
+  const host = request.headers?.host;
+  if (host) {
+    trustedOrigins.add(normalizeOrigin(`http://${host}`));
+  }
+
+  return candidates.some((candidate) => {
+    const normalized = normalizeOrigin(candidate);
+    if (!normalized) return false;
+    return trustedOrigins.has(normalized);
+  });
+}
+
 function readSession(request) {
   const cookies = parseCookies(request.headers.cookie);
   const raw = cookies[SESSION_COOKIE];
@@ -173,6 +215,30 @@ async function csrfCheck(request, reply) {
     request.routeOptions?.url ??
     request.url.split('?')[0].split('#')[0];
   if (EXEMPT.includes(path)) return;
+
+  const hasBearerAuth = Boolean(
+    request.headers.authorization &&
+    request.headers.authorization.startsWith('Bearer ')
+  );
+  const hasSession = Boolean(session && session.sid);
+
+  if (!isTrustedRequestOrigin(request)) {
+    logCsrfWarn(
+      request,
+      {
+        method: request.method,
+        url: request.url,
+        origin: request.headers?.origin || null,
+        referer: request.headers?.referer || null,
+      },
+      'CSRF origin validation failed'
+    );
+    return reply.status(403).send({ error: 'CSRF validation failed' });
+  }
+
+  if (!hasSession && hasBearerAuth) {
+    return;
+  }
 
   const headerToken = request.headers['x-csrf-token'];
 

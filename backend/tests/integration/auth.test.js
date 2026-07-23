@@ -261,8 +261,7 @@ describe('Auth Integration Tests', () => {
   });
 
   describe('CSRF Protection', () => {
-    it('should reject POST without CSRF header', async () => {
-      // No csrf-token cookie and no X-CSRF-Token header — must 403.
+    it('should allow POST with bearer auth even without a CSRF header', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/departments',
@@ -270,7 +269,18 @@ describe('Auth Integration Tests', () => {
           Authorization: `Bearer ${freshAccessToken}`,
           'Content-Type': 'application/json',
         },
-        payload: { name: 'Test' },
+        payload: { name: 'TestBearer_' + Date.now() },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('should reject POST when origin is not in the trusted allow-list', async () => {
+      const res = await inject('POST', '/api/v1/departments', {
+        headers: {
+          Authorization: `Bearer ${freshAccessToken}`,
+          Origin: 'https://evil.example',
+        },
+        payload: { name: 'TestDept_' + Date.now() },
       });
       expect(res.statusCode).toBe(403);
     });
