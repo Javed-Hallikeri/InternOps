@@ -74,13 +74,14 @@ function isTrustedRequestOrigin(request) {
   const candidates = [originHeader, refererHeader].filter(Boolean);
 
   if (!candidates.length) {
-    return true;
+    return process.env.NODE_ENV === 'test';
   }
 
   const trustedOrigins = new Set(getTrustedOrigins());
   const host = request.headers?.host;
   if (host) {
     trustedOrigins.add(normalizeOrigin(`http://${host}`));
+    trustedOrigins.add(normalizeOrigin(`https://${host}`));
   }
 
   return candidates.some((candidate) => {
@@ -130,7 +131,7 @@ function rotateAndSetCsrf(request, reply, userId = null) {
   const csrfToken = tokenFor(newSid);
 
   reply.setCookie(TOKEN_COOKIE, csrfToken, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     path: '/',
@@ -182,7 +183,7 @@ function getOrCreateToken(request, reply) {
 function generateToken(request, reply) {
   const token = getOrCreateToken(request, reply);
   reply.setCookie('csrf-token', token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     path: '/',
@@ -222,6 +223,10 @@ async function csrfCheck(request, reply) {
   );
   const hasSession = Boolean(session && session.sid);
 
+  if (!hasSession && hasBearerAuth) {
+    return;
+  }
+
   if (!isTrustedRequestOrigin(request)) {
     logCsrfWarn(
       request,
@@ -234,10 +239,6 @@ async function csrfCheck(request, reply) {
       'CSRF origin validation failed'
     );
     return reply.status(403).send({ error: 'CSRF validation failed' });
-  }
-
-  if (!hasSession && hasBearerAuth) {
-    return;
   }
 
   const headerToken = request.headers['x-csrf-token'];
