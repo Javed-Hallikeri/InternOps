@@ -24,7 +24,24 @@ const EXCLUDED_FIELDS = [
   'actionurl',
   'redirecturi',
   'redirect_uri',
+  '_csrf',
 ];
+
+// Fields that must never be mutated, regardless of any allowlist —
+// auth/token logic depends on exact, byte-for-byte string matching
+// (bcrypt comparison, token validation). Sanitizing these would
+// silently break login for any user whose password/token contains
+// characters treated specially by sanitize-html.
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'oldPassword',
+  'newPassword',
+  'confirmPassword',
+  'token',
+  'resetToken',
+  'refreshToken',
+  '_csrf',
+]);
 
 function isExcludedField(key) {
   if (typeof key !== 'string') return false;
@@ -42,39 +59,69 @@ function isExcludedField(key) {
   );
 }
 
-function sanitizeInput(obj, allowedFields = []) {
-  if (typeof obj !== 'object' || obj === null) return;
+function isPlainObject(val) {
+  return Object.prototype.toString.call(val) === '[object Object]';
+}
 
-  for (const key of Object.keys(obj)) {
-    if (isExcludedField(key)) {
-      continue;
-    }
-    const val = obj[key];
+function sanitizeInput(obj, excludedFields = [], depth = 0) {
+  // Prevent stack overflow DoS attacks
+  if (depth > 10 || !obj || typeof obj !== 'object') return;
 
-    if (typeof val === 'string') {
-      if (allowedFields.length === 0 || allowedFields.includes(key)) {
-        obj[key] = sanitizeHtml(val, {
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const val = obj[i];
+      if (typeof val === 'string') {
+        obj[i] = sanitizeHtml(val, {
           allowedTags: [],
           allowedAttributes: {},
         });
+      } else if (isPlainObject(val) || Array.isArray(val)) {
+        sanitizeInput(val, excludedFields, depth + 1);
       }
-    } else if (val && typeof val === 'object') {
-      sanitizeInput(val, allowedFields);
+    }
+    return;
+  }
+
+  if (!isPlainObject(obj)) return;
+
+  for (const key of Object.keys(obj)) {
+    if (
+      SENSITIVE_FIELDS.has(key) ||
+      isExcludedField(key) ||
+      excludedFields.includes(key)
+    ) {
+      continue;
+    }
+
+    const val = obj[key];
+
+    if (typeof val === 'string') {
+      obj[key] = sanitizeHtml(val, {
+        allowedTags: [],
+        allowedAttributes: {},
+      });
+    } else if (isPlainObject(val) || Array.isArray(val)) {
+      sanitizeInput(val, excludedFields, depth + 1);
     }
   }
 }
 
 function sanitizationMiddleware(request, reply, done) {
+  // Previously an allowlist (SAFE_FIELDS) — meant any field NOT in this
+  // list (email, bio, etc.) was never sanitized at all. Now empty, so
+  // every field is sanitized by default except SENSITIVE_FIELDS and other exclusions.
+  const EXCLUDED_FIELDS_PARAM = [];
+
   if (request.body) {
-    sanitizeInput(request.body);
+    sanitizeInput(request.body, EXCLUDED_FIELDS_PARAM);
   }
 
   if (request.query) {
-    sanitizeInput(request.query);
+    sanitizeInput(request.query, EXCLUDED_FIELDS_PARAM);
   }
 
   if (request.params) {
-    sanitizeInput(request.params);
+    sanitizeInput(request.params, EXCLUDED_FIELDS_PARAM);
   }
 
   done();
