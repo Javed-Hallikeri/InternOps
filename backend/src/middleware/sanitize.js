@@ -43,33 +43,42 @@ const SENSITIVE_FIELDS = new Set([
   '_csrf',
 ]);
 
-const EXCLUDED_TERMS = ['password', 'token', 'secret', 'key', 'signature', 'url', 'uri', 'path'];
+const EXCLUDED_TERMS = [
+  'password',
+  'token',
+  'secret',
+  'key',
+  'signature',
+  'url',
+  'uri',
+  'path',
+];
 
 function isExcludedField(key) {
   if (typeof key !== 'string') return false;
   const lowerKey = key.toLowerCase();
-  
+
   if (EXCLUDED_FIELDS.has(lowerKey)) {
     return true;
   }
-  
+
   for (const term of EXCLUDED_TERMS) {
     if (lowerKey === term) {
       return true;
     }
-    
+
     // Check for delimiter boundary (e.g. api_key, client-secret)
     if (lowerKey.endsWith('_' + term) || lowerKey.endsWith('-' + term)) {
       return true;
     }
-    
+
     // Check for camelCase boundary (e.g. apiKey, clientSecret)
     const capitalizedTerm = term.charAt(0).toUpperCase() + term.slice(1);
     if (key.endsWith(capitalizedTerm)) {
       return true;
     }
   }
-  
+
   return false;
 }
 
