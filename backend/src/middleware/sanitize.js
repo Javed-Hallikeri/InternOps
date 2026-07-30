@@ -1,7 +1,7 @@
 // Basic input sanitization for common injection patterns
 const sanitizeHtml = require('sanitize-html');
 
-const EXCLUDED_FIELDS = [
+const EXCLUDED_FIELDS = new Set([
   'password',
   'oldpassword',
   'newpassword',
@@ -25,7 +25,7 @@ const EXCLUDED_FIELDS = [
   'redirecturi',
   'redirect_uri',
   '_csrf',
-];
+]);
 
 // Fields that must never be mutated, regardless of any allowlist —
 // auth/token logic depends on exact, byte-for-byte string matching
@@ -43,20 +43,34 @@ const SENSITIVE_FIELDS = new Set([
   '_csrf',
 ]);
 
+const EXCLUDED_TERMS = ['password', 'token', 'secret', 'key', 'signature', 'url', 'uri', 'path'];
+
 function isExcludedField(key) {
   if (typeof key !== 'string') return false;
   const lowerKey = key.toLowerCase();
-  return (
-    EXCLUDED_FIELDS.includes(lowerKey) ||
-    lowerKey.includes('password') ||
-    lowerKey.includes('token') ||
-    lowerKey.includes('secret') ||
-    lowerKey.includes('key') ||
-    lowerKey.includes('signature') ||
-    lowerKey.endsWith('url') ||
-    lowerKey.endsWith('uri') ||
-    lowerKey.endsWith('path')
-  );
+  
+  if (EXCLUDED_FIELDS.has(lowerKey)) {
+    return true;
+  }
+  
+  for (const term of EXCLUDED_TERMS) {
+    if (lowerKey === term) {
+      return true;
+    }
+    
+    // Check for delimiter boundary (e.g. api_key, client-secret)
+    if (lowerKey.endsWith('_' + term) || lowerKey.endsWith('-' + term)) {
+      return true;
+    }
+    
+    // Check for camelCase boundary (e.g. apiKey, clientSecret)
+    const capitalizedTerm = term.charAt(0).toUpperCase() + term.slice(1);
+    if (key.endsWith(capitalizedTerm)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 function isPlainObject(val) {
@@ -75,7 +89,7 @@ function sanitizeInput(obj, excludedFields = [], depth = 0) {
           allowedTags: [],
           allowedAttributes: {},
         });
-      } else if (isPlainObject(val) || Array.isArray(val)) {
+      } else if (val && typeof val === 'object') {
         sanitizeInput(val, excludedFields, depth + 1);
       }
     }
@@ -100,7 +114,7 @@ function sanitizeInput(obj, excludedFields = [], depth = 0) {
         allowedTags: [],
         allowedAttributes: {},
       });
-    } else if (isPlainObject(val) || Array.isArray(val)) {
+    } else if (val && typeof val === 'object') {
       sanitizeInput(val, excludedFields, depth + 1);
     }
   }
