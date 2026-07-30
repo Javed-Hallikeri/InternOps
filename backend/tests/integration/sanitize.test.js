@@ -44,6 +44,13 @@ describe('Sanitization Middleware & Helper Tests', () => {
       expect(isExcludedField('description')).toBe(false);
       expect(isExcludedField('content')).toBe(false);
     });
+
+    it('should NOT exclude innocent field names containing key or secret substrings', () => {
+      expect(isExcludedField('monkey')).toBe(false);
+      expect(isExcludedField('keyboard')).toBe(false);
+      expect(isExcludedField('secretary')).toBe(false);
+      expect(isExcludedField('secret_question')).toBe(false);
+    });
   });
 
   describe('sanitizeInput Helper directly', () => {
@@ -93,6 +100,35 @@ describe('Sanitization Middleware & Helper Tests', () => {
       expect(input.user.bio).toBe('My  bio');
       expect(input.user.email).toBe('test<xss>@example.com');
       expect(input.items[0].name).toBe('Item 1');
+    });
+
+    it('should sanitize arrays of strings directly', () => {
+      const input = ['<script>alert("xss")</script>', 'Hello <b>world</b>'];
+      sanitizeInput(input);
+      expect(input[0]).toBe('');
+      expect(input[1]).toBe('Hello world');
+    });
+
+    it('should handle non-string primitive values and null without throwing errors', () => {
+      const input = {
+        name: '<b>John</b>',
+        age: 30,
+        isActive: true,
+        score: null,
+        info: undefined,
+        tags: ['<script>xss</script>', 100, false, null],
+      };
+
+      expect(() => sanitizeInput(input)).not.toThrow();
+      expect(input.name).toBe('John');
+      expect(input.age).toBe(30);
+      expect(input.isActive).toBe(true);
+      expect(input.score).toBe(null);
+      expect(input.info).toBeUndefined();
+      expect(input.tags[0]).toBe('');
+      expect(input.tags[1]).toBe(100);
+      expect(input.tags[2]).toBe(false);
+      expect(input.tags[3]).toBe(null);
     });
   });
 
